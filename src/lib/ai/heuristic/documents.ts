@@ -69,11 +69,30 @@ export function splitSections(rawText: string): ParsedSections {
 
 const BULLET = /^[-•*◦·▪]\s*/;
 
+/** Lines that read as an achievement: an action verb and some substance. */
+const ACHIEVEMENT_LINE =
+  /\b(built|designed|implemented|developed|created|led|managed|migrated|optimi[sz]ed|automated|deployed|reduced|improved|delivered|launched|owned|architected|wrote|scaled|integrated)\b/i;
+
+/**
+ * Extract achievement lines from a section.
+ *
+ * Bullet glyphs frequently do not survive PDF text extraction, so a CV that
+ * clearly has bullets on screen can arrive here as plain lines. When no bullet
+ * markers are found at all, fall back to lines that read as achievements —
+ * otherwise those CVs yield no probe targets and the interview loses its best
+ * material.
+ */
 function bullets(lines: string[]): string[] {
-  return lines
+  const marked = lines
     .filter((line) => BULLET.test(line) || /^\d+[.)]\s/.test(line))
     .map((line) => line.replace(BULLET, '').replace(/^\d+[.)]\s*/, '').trim())
     .filter((line) => line.length > 12);
+
+  if (marked.length > 0) return marked;
+
+  return lines
+    .filter((line) => line.length > 24 && ACHIEVEMENT_LINE.test(line) && !/\b(19|20)\d{2}\b/.test(line))
+    .map((line) => line.trim());
 }
 
 /** Years mentioned as a range, used to estimate total experience. */
@@ -261,7 +280,9 @@ function buildExperiences(lines: string[]): CandidateAnalysis['experiences'] {
       continue;
     }
 
-    if (current && isBullet) {
+    // Same fallback as `bullets`: treat an achievement-shaped line as a bullet
+    // when the glyphs did not survive extraction.
+    if (current && (isBullet || (line.length > 24 && ACHIEVEMENT_LINE.test(line)))) {
       const text = line.replace(BULLET, '').replace(/^\d+[.)]\s*/, '').trim();
       if (text.length > 12 && current.achievements.length < 8) {
         current.achievements.push(text.slice(0, 400));

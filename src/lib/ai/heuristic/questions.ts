@@ -310,7 +310,9 @@ export function generateQuestionOffline(context: HeuristicQuestionContext): Gene
   return {
     question,
     category: frame?.category ?? 'experience',
-    skillLabel: targetSkill,
+    // Report the skill the question actually names. Returning null here while
+    // the text asks about Python would misattribute the answer's score.
+    skillLabel: targetSkill ?? (skillLabel === context.roleTitle ? null : skillLabel),
     difficulty: context.difficulty,
     expectedCompetency: frame?.competency ?? 'Demonstrates relevant working knowledge.',
     evaluationCriteria: frame ? [...frame.criteria] : ['Answers the question asked', 'Gives specific detail'],
