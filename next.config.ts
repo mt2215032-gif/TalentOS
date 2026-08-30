@@ -45,11 +45,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   serverExternalPackages: ['pg'],
-  experimental: {
-    // Server Actions are not used for mutations; the app is API-route driven so
-    // that the same contract serves future mobile/voice clients.
-    typedRoutes: true,
-  },
+  // Typed routes catch a broken Link at build time rather than at click time.
+  typedRoutes: true,
   async headers() {
     return [
       {
