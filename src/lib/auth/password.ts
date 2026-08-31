@@ -114,8 +114,12 @@ export function checkPasswordStrength(password: string): PasswordCheck {
   if (password.length > MAX_PASSWORD_LENGTH) {
     problems.push(`Use at most ${MAX_PASSWORD_LENGTH} characters.`);
   }
-  if (/^(.)\1+$/.test(password)) {
-    problems.push('Use more than one repeated character.');
+  // Length alone is not entropy: "aaaaaaaaaa1" clears ten characters while
+  // carrying almost none. Counting distinct characters catches the whole family
+  // of padded-repetition passwords, not just the fully uniform case.
+  const distinctCharacters = new Set(password).size;
+  if (distinctCharacters < 5 && password.length > 0) {
+    problems.push('Use a wider mix of characters — this one repeats too much.');
   }
   if (COMMON_PASSWORDS.has(password.toLowerCase())) {
     problems.push('This password is too common. Choose something less predictable.');

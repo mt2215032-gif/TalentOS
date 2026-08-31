@@ -1,7 +1,7 @@
 import type { InterviewPlan } from '@/lib/schemas/ai';
 import type { HeuristicPlanContext } from '@/lib/ai/heuristic/context';
 import { resolveSkill } from '@/lib/ai/taxonomy';
-import type { Importance } from '@/lib/schemas/domain';
+import type { Importance, InterviewType } from '@/lib/schemas/domain';
 
 /**
  * Offline interview planning.
@@ -38,9 +38,24 @@ export function buildPlanOffline(context: HeuristicPlanContext): InterviewPlan {
         importance: skill.importance,
       }));
 
-  const skills = sourceSkills.length > 0 ? sourceSkills : [
-    { label: roleTitle, category: 'domain' as const, importance: 'high' as Importance },
-  ];
+  // Without a job description there is no skill matrix to plan from. Falling
+  // back to the role title alone would make every question skill-less, and an
+  // interview that scores no skills leaves the candidate's skill profile empty
+  // forever. Use what the CV claims, or a general competency set for the type.
+  const fallbackSkills =
+    (candidate?.skills ?? []).length > 0
+      ? (candidate?.skills ?? []).slice(0, 6).map((skill) => ({
+          label: skill.label,
+          category: skill.category,
+          importance: 'high' as Importance,
+        }))
+      : GENERAL_COMPETENCIES[interviewType].map((label) => ({
+          label,
+          category: 'domain' as const,
+          importance: 'high' as Importance,
+        }));
+
+  const skills = sourceSkills.length > 0 ? sourceSkills : fallbackSkills;
 
   // Reserve one question for the opener and one for the close.
   const budget = Math.max(1, plannedQuestions - 2);
@@ -119,6 +134,21 @@ export function buildPlanOffline(context: HeuristicPlanContext): InterviewPlan {
     closingStrategy: 'Give the candidate the floor to add anything the questions did not reach.',
   };
 }
+
+/**
+ * What each interview type is about when no job description narrows it.
+ *
+ * These are subjects an interviewer can actually probe and score, which is what
+ * a role title is not.
+ */
+const GENERAL_COMPETENCIES: Record<InterviewType, readonly string[]> = {
+  technical: ['Problem Solving', 'System Design', 'Debugging', 'Testing', 'Data Structures'],
+  behavioral: ['Communication', 'Teamwork', 'Ownership', 'Conflict Resolution', 'Adaptability'],
+  hr: ['Communication', 'Adaptability', 'Ownership'],
+  case_study: ['Problem Solving', 'Critical Thinking', 'Stakeholder Management'],
+  system_design: ['System Design', 'Performance Optimization', 'Security'],
+  mixed: ['Problem Solving', 'Communication', 'System Design', 'Ownership'],
+};
 
 /** Competencies a behavioural or HR interview is organised around. */
 const BEHAVIORAL_COMPETENCIES = [

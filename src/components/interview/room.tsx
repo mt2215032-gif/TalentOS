@@ -39,6 +39,35 @@ export interface RoomInterview {
   engineProvider: string;
 }
 
+/**
+ * The shape the answer endpoint returns.
+ *
+ * It is an interview *turn*, not a question row — the identifier is
+ * `questionId`. Keeping this type explicit is what stops the two shapes being
+ * silently conflated.
+ */
+interface ApiTurn {
+  interviewId: string;
+  questionId: string;
+  position: number;
+  question: string;
+  category: string;
+  skillLabel: string | null;
+  difficulty: Difficulty;
+  plannedQuestions: number;
+}
+
+function toRoomQuestion(turn: ApiTurn): RoomQuestion {
+  return {
+    id: turn.questionId,
+    position: turn.position,
+    question: turn.question,
+    category: turn.category,
+    skillLabel: turn.skillLabel,
+    difficulty: turn.difficulty,
+  };
+}
+
 interface Props {
   interview: RoomInterview;
   currentQuestion: RoomQuestion | null;
@@ -85,7 +114,7 @@ export function InterviewRoom({ interview: initial, currentQuestion: initialQues
 
       try {
         const result = await api.post<{
-          next: RoomQuestion & { plannedQuestions: number } | null;
+          next: ApiTurn | null;
           isComplete: boolean;
           answeredCount: number;
         }>(`/api/interviews/${interview.id}/answer`, {
@@ -116,7 +145,7 @@ export function InterviewRoom({ interview: initial, currentQuestion: initialQues
           setFinished(true);
           setQuestion(null);
         } else {
-          setQuestion(result.next);
+          setQuestion(toRoomQuestion(result.next));
         }
       } catch (caught) {
         setError(

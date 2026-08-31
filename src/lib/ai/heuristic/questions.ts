@@ -11,6 +11,8 @@ import type { HeuristicQuestionContext } from '@/lib/ai/heuristic/context';
  * is only the wording, not the interview's behaviour.
  */
 
+const DIFFICULTY_ORDER: readonly Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
+
 interface Frame {
   category: QuestionCategory;
   difficulties: readonly Difficulty[];
@@ -52,7 +54,7 @@ const TECHNICAL_FRAMES: readonly Frame[] = [
   {
     category: 'scenario',
     difficulties: ['medium', 'hard', 'expert'],
-    template: 'Your team must scale a {skill}-based component to ten times its current load. What breaks first, and what do you change?',
+    template: 'Your team must scale the {skill} side of a system to ten times its current load. What breaks first, and what do you change?',
     competency: 'Can reason about scaling limits and bottlenecks.',
     criteria: ['Identifies a plausible first bottleneck', 'Proposes a proportionate change', 'Acknowledges the cost of the change'],
   },
@@ -158,6 +160,44 @@ const CASE_STUDY_FRAMES: readonly Frame[] = [
     template: 'You have two weeks and limited data to decide whether investing in {skill} is worth it. How do you reach a recommendation?',
     competency: 'Makes decisions under uncertainty with an explicit method.',
     criteria: ['Defines what would make it worth it', 'Proposes a proportionate analysis', 'Commits to a recommendation'],
+  },
+];
+
+/**
+ * Frames that need no skill.
+ *
+ * Used once the interview has spent every skill-specific frame. A role title is
+ * not a technology, so substituting it into "Explain how {skill} works" produces
+ * nonsense — these ask about the role directly instead.
+ */
+const GENERAL_FRAMES: readonly Frame[] = [
+  {
+    category: 'experience',
+    difficulties: ['easy', 'medium', 'hard', 'expert'],
+    template: 'What is the hardest problem you have solved in this kind of role, and what made it hard?',
+    competency: 'Can identify genuine difficulty and articulate why it was difficult.',
+    criteria: ['Names a specific problem', 'Explains the source of the difficulty', 'Describes how it was resolved'],
+  },
+  {
+    category: 'problem_solving',
+    difficulties: ['medium', 'hard', 'expert'],
+    template: 'Tell me about a technical decision you made that you would make differently now. What changed your mind?',
+    competency: 'Reflects on past decisions and updates on evidence.',
+    criteria: ['Names the original decision and its reasoning', 'Identifies what new information changed it', 'Shows no defensiveness'],
+  },
+  {
+    category: 'scenario',
+    difficulties: ['medium', 'hard', 'expert'],
+    template: 'You join a team and inherit a system nobody fully understands. What are your first two weeks?',
+    competency: 'Has a method for building understanding of unfamiliar systems.',
+    criteria: ['Prioritises understanding before changing', 'Names concrete first steps', 'Involves the people who hold context'],
+  },
+  {
+    category: 'experience',
+    difficulties: ['easy', 'medium'],
+    template: 'What part of this role do you expect to find most difficult, and what would you do about it?',
+    competency: 'Assesses their own gaps honestly and plans around them.',
+    criteria: ['Names a real gap rather than a humblebrag', 'Proposes a concrete mitigation', 'Is specific to this role'],
   },
 ];
 
@@ -267,28 +307,107 @@ export function generateQuestionOffline(context: HeuristicQuestionContext): Gene
 
   // ── Skill-targeted question ──────────────────────────────────────────────
   const targetSkill = context.targetSkills.find((s) => s.remaining > 0)?.label ?? null;
-  const frames = framesFor(context).filter((frame) => frame.difficulties.includes(context.difficulty));
-  const pool = frames.length > 0 ? frames : framesFor(context);
+  const allFrames = framesFor(context);
+  const atDifficulty = allFrames.filter((frame) => frame.difficulties.includes(context.difficulty));
 
-  // Rotate through frames by position so a skill is not asked the same way twice.
-  let frame = pick(pool, context.position - 1);
-  const skillLabel = targetSkill ?? context.job?.skills[0]?.label ?? context.roleTitle;
+  // Filtering by difficulty alone can leave one or two frames — at "easy" only
+  // the definitional ones survive — and the interview then alternates between
+  // two sentence shapes. Widen to the neighbouring difficulty rather than let
+  // it become repetitive.
+  const pool =
+    atDifficulty.length >= 3
+      ? atDifficulty
+      : allFrames.filter((frame) =>
+          frame.difficulties.some((level) => Math.abs(
+            DIFFICULTY_ORDER.indexOf(level) - DIFFICULTY_ORDER.indexOf(context.difficulty),
+          ) <= 1),
+        );
 
-  let question = (frame?.template ?? 'Tell me about your experience with {skill}.').replace(
-    '{skill}',
-    skillLabel,
-  );
+  // The opening question sets the tone. Asking a candidate to define a
+  // technology they claim years of is the wrong first move — open on their
+  // actual work and let the interview earn its way to fundamentals.
+  // The opening question sets the tone. Asking a candidate to define a
+  // technology they claim years of is the wrong first move — open on their
+  // actual work and let the interview earn its way to fundamentals.
+  const opener =
+    context.position === 1
+      ? (pool.find((frame) => frame.category === 'practical' || frame.category === 'experience') ??
+         pool.find((frame) => frame.category === 'behavioral'))
+      : undefined;
 
-  // Never repeat a question verbatim: walk the pool for an unused frame.
+  const fallbackSkill = context.job?.skills[0]?.label ?? context.roleTitle;
+  // Search every skill that still has budget, not only the first. Exhausting
+  // one skill's frames must move the interview to another subject rather than
+  // repeat a question, which is the most obvious way an interviewer breaks.
+  const skillCandidates = [
+    ...(targetSkill ? [targetSkill] : []),
+    ...context.targetSkills.filter((entry) => entry.label !== targetSkill).map((entry) => entry.label),
+    fallbackSkill,
+  ].filter((label, index, all) => label !== context.roleTitle && all.indexOf(label) === index);
+
+  if (skillCandidates.length === 0) skillCandidates.push(context.roleTitle);
+
+  const render = (frame: Frame | undefined, skill: string): string =>
+    (frame?.template ?? 'Tell me about your experience with {skill}.').replace('{skill}', skill);
+
+  let frame: Frame | undefined = opener ?? pick(pool, context.position - 1);
+  let skillLabel = skillCandidates[0] ?? fallbackSkill;
+  let question = render(frame, skillLabel);
+
   if (askedQuestions.has(question)) {
-    for (let offset = 1; offset <= pool.length; offset += 1) {
-      const alternative = pick(pool, context.position - 1 + offset);
-      const candidateQuestion = (alternative?.template ?? '').replace('{skill}', skillLabel);
-      if (candidateQuestion && !askedQuestions.has(candidateQuestion)) {
-        frame = alternative;
-        question = candidateQuestion;
-        break;
+    let resolved = false;
+    // Walk (skill × frame) pairs in priority order until something is new.
+    for (const candidateSkill of skillCandidates) {
+      for (let offset = 0; offset < pool.length && !resolved; offset += 1) {
+        const alternative = pick(pool, context.position - 1 + offset);
+        const candidateQuestion = render(alternative, candidateSkill);
+        if (!askedQuestions.has(candidateQuestion)) {
+          frame = alternative;
+          skillLabel = candidateSkill;
+          question = candidateQuestion;
+          resolved = true;
+        }
       }
+      if (resolved) break;
+    }
+
+    // Every skill-specific frame is spent. Fall back to role-level questions,
+    // which need no skill and so never produce "explain how <job title> works".
+    if (!resolved) {
+      const general = GENERAL_FRAMES.find((entry) => !askedQuestions.has(entry.template));
+      if (general) {
+        frame = general;
+        skillLabel = context.roleTitle;
+        question = general.template;
+        resolved = true;
+      }
+    }
+
+    // Even the general frames are spent — only reachable in a long interview
+    // against a single skill. Questions built from what the interview has
+    // already covered are always novel, which keeps the no-repeats invariant
+    // true rather than nearly true.
+    if (!resolved) {
+      const covered = [...new Set(context.asked.map((a) => a.skillLabel).filter(Boolean))] as string[];
+      const lastResort: string[] = [
+        ...(covered.length >= 2
+          ? [`Compare ${covered[0]} and ${covered[1]} for this kind of work. When would you reach for one over the other?`]
+          : []),
+        ...covered.map(
+          (skill) => `Where does ${skill} stop being the right tool, and what do you reach for instead?`,
+        ),
+        ...covered.map(
+          (skill) => `How would you teach ${skill} to someone joining your team next week?`,
+        ),
+        'What is the most important thing about this role that we have not covered yet?',
+        'If you were interviewing someone for this role, what would you ask that I have not?',
+      ];
+
+      question =
+        lastResort.find((candidate) => !askedQuestions.has(candidate)) ??
+        // Positional suffix guarantees uniqueness once every phrasing is spent.
+        `Staying on this subject, what is the ${ordinal(context.position)} thing a strong candidate should be able to explain about it?`;
+      skillLabel = context.roleTitle;
     }
   }
 
@@ -312,7 +431,7 @@ export function generateQuestionOffline(context: HeuristicQuestionContext): Gene
     category: frame?.category ?? 'experience',
     // Report the skill the question actually names. Returning null here while
     // the text asks about Python would misattribute the answer's score.
-    skillLabel: targetSkill ?? (skillLabel === context.roleTitle ? null : skillLabel),
+    skillLabel: skillLabel === context.roleTitle ? null : skillLabel,
     difficulty: context.difficulty,
     expectedCompetency: frame?.competency ?? 'Demonstrates relevant working knowledge.',
     evaluationCriteria: frame ? [...frame.criteria] : ['Answers the question asked', 'Gives specific detail'],
@@ -321,6 +440,12 @@ export function generateQuestionOffline(context: HeuristicQuestionContext): Gene
       ? `${targetSkill} is a priority skill for this role and has remaining question budget.`
       : 'Covering general role suitability.',
   };
+}
+
+function ordinal(value: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const remainder = value % 100;
+  return `${value}${suffixes[(remainder - 20) % 10] ?? suffixes[remainder] ?? suffixes[0]}`;
 }
 
 function truncate(text: string, max: number): string {

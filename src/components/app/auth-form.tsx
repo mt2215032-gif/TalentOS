@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { Button, Card, ErrorNote, Field, inputClass } from '@/components/ui/primitives';
+import { useHydrated } from '@/components/ui/use-hydrated';
 
 /**
  * Sign in and registration.
@@ -23,6 +24,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const hydrated = useHydrated();
 
   async function handleSubmit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -116,7 +118,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           />
         </Field>
 
-        <Button type="submit" loading={pending} className="w-full">
+        <Button type="submit" loading={pending} disabled={!hydrated} className="w-full">
           {isRegister ? 'Create account' : 'Sign in'}
         </Button>
       </form>

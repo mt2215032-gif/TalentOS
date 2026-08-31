@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api-client';
 import {
   Badge, Button, Card, CardHeader, EmptyState, ErrorNote, Field, inputClass,
 } from '@/components/ui/primitives';
+import { useHydrated } from '@/components/ui/use-hydrated';
 
 interface JobRow {
   id: string;
@@ -44,6 +45,7 @@ export function JobsManager({ initialJobs }: { initialJobs: JobRow[] }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [detail, setDetail] = useState<JobDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
+  const hydrated = useHydrated();
 
   async function addJob(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -163,7 +165,7 @@ export function JobsManager({ initialJobs }: { initialJobs: JobRow[] }) {
               maxLength={40000}
             />
           </Field>
-          <Button type="submit" loading={pending}>
+          <Button type="submit" loading={pending} disabled={!hydrated}>
             {pending ? 'Analysing…' : 'Analyse job description'}
           </Button>
         </form>

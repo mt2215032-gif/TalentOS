@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api-client';
 import {
   Badge, Button, Card, ErrorNote, Field, inputClass,
 } from '@/components/ui/primitives';
+import { useHydrated } from '@/components/ui/use-hydrated';
 import { DIFFICULTY_LABELS, INTERVIEW_TYPE_LABELS } from '@/lib/schemas/domain';
 import type { Difficulty, InterviewType } from '@/lib/schemas/domain';
 
@@ -47,6 +48,7 @@ export function NewInterviewForm({ jobs, resumes, remaining }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const hydrated = useHydrated();
   const outOfQuota = remaining !== null && remaining <= 0;
 
   // Selecting a job with no role title typed is the common case, so the job's
@@ -274,7 +276,7 @@ export function NewInterviewForm({ jobs, resumes, remaining }: Props) {
       </Card>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" size="lg" loading={pending} disabled={outOfQuota}>
+        <Button type="submit" size="lg" loading={pending} disabled={outOfQuota || !hydrated}>
           {pending ? 'Preparing your interview…' : 'Start interview'}
         </Button>
         {remaining !== null ? (

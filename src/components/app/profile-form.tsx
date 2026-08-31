@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { Button, Card, CardHeader, ErrorNote, Field, inputClass } from '@/components/ui/primitives';
+import { useHydrated } from '@/components/ui/use-hydrated';
 
 interface Initial {
   fullName: string;
@@ -21,6 +22,7 @@ export function ProfileForm({ initial, email }: { initial: Initial; email: strin
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hydrated = useHydrated();
 
   function set<K extends keyof Initial>(key: K, value: Initial[K]): void {
     setValues((previous) => ({ ...previous, [key]: value }));
@@ -143,7 +145,7 @@ export function ProfileForm({ initial, email }: { initial: Initial; email: strin
         </div>
 
         <div className="flex items-center gap-3">
-          <Button type="submit" loading={pending}>
+          <Button type="submit" loading={pending} disabled={!hydrated}>
             Save profile
           </Button>
           {saved ? (

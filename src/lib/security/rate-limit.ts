@@ -33,7 +33,10 @@ export interface RateLimitResult {
  */
 export const RATE_LIMITS = {
   login: { limit: 8, windowSeconds: 300 },
-  register: { limit: 5, windowSeconds: 3600 },
+  // Registration is limited per IP. Shared addresses are common — an office,
+  // a university, a bootcamp cohort all sign up from one NAT — so this is set
+  // to stop scripted abuse rather than to cap a classroom.
+  register: { limit: 20, windowSeconds: 3600 },
   passwordChange: { limit: 5, windowSeconds: 3600 },
   resumeUpload: { limit: 12, windowSeconds: 3600 },
   jobCreate: { limit: 30, windowSeconds: 3600 },

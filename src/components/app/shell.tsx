@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Logo } from '@/components/marketing/nav';
 import { ThemeToggle } from '@/components/ui/theme';
@@ -34,7 +34,6 @@ export function AppShell({
   engine: { provider: string; isLlm: boolean };
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -54,8 +53,10 @@ export function AppShell({
     try {
       await api.post('/api/auth/logout');
     } finally {
-      router.push('/login');
-      router.refresh();
+      // A hard navigation rather than router.push: signing out must drop every
+      // cached server component and client store for the old session, and
+      // push-then-refresh races in a way that can leave the user on the page.
+      window.location.assign('/login');
     }
   }
 
@@ -71,7 +72,7 @@ export function AppShell({
           <span className="text-[15px] font-semibold tracking-tight">TalentOS</span>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+        <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
           {visible.map((item) => (
             <Link
               key={item.href}
@@ -140,7 +141,7 @@ export function AppShell({
         </header>
 
         {menuOpen ? (
-          <div className="border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2 lg:hidden">
+          <nav aria-label="Mobile" className="border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2 lg:hidden">
             {visible.map((item) => (
               <Link
                 key={item.href}
@@ -163,7 +164,7 @@ export function AppShell({
             >
               Sign out
             </button>
-          </div>
+          </nav>
         ) : null}
 
         {!engine.isLlm ? (
