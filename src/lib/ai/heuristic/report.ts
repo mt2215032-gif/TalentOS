@@ -114,9 +114,30 @@ export function buildReportOffline(context: HeuristicEvaluationContext): FinalRe
             ? `${skill.skillLabel} was not covered in this interview, so it remains unverified for this role.`
             : `Answers touching ${skill.skillLabel} scored ${skill.score}/100. ${skill.feedback}`,
       })),
-    questionAnalysis: context.answers.slice(0, 40).map((answer) => ({
+    questionAnalysis: buildQuestionAnalysis(context),
+  };
+}
+
+/**
+ * Per-question analysis.
+ *
+ * Advice already given earlier in the report is not repeated: when a candidate
+ * makes the same mistake on five questions, saying the same sentence five times
+ * teaches nothing they did not learn the first time. Each question instead
+ * surfaces the most consequential gap whose advice has not been used yet, so the
+ * report covers the range of what to work on.
+ */
+function buildQuestionAnalysis(context: HeuristicEvaluationContext): FinalReport['questionAnalysis'] {
+  const alreadyAdvised = new Set<string>();
+
+  return context.answers.slice(0, 40).map((answer) => {
+    const score = answer.answerScore ?? 0;
+    const advice = improvementFor(score, answer.gaps, alreadyAdvised);
+    alreadyAdvised.add(advice);
+
+    return {
       position: answer.position,
-      score: answer.answerScore ?? 0,
+      score,
       whatWasGood:
         answer.strengths.length > 0
           ? answer.strengths.join(' ')
@@ -126,9 +147,9 @@ export function buildReportOffline(context: HeuristicEvaluationContext): FinalRe
           ? answer.gaps.join(' ')
           : 'No significant gaps were identified in this answer.',
       idealAnswerCharacteristics: idealCharacteristics(answer.expectedCompetency, answer.category),
-      howToImprove: improvementFor(answer.answerScore ?? 0, answer.gaps),
-    })),
-  };
+      howToImprove: advice,
+    };
+  });
 }
 
 function severityFor(score: number, evidenceCount: number): Importance {
@@ -293,27 +314,75 @@ function idealCharacteristics(expectedCompetency: string, category: string): str
   return base.slice(0, 6);
 }
 
-function improvementFor(score: number, gaps: string[]): string {
+/**
+ * Turn a measured gap into a specific next action.
+ *
+ * The gap strings come from the answer analyzer, so this maps the actual set
+ * rather than pattern-matching loosely. Echoing the gap back ("address the gap:
+ * you did not engage with the question") is not advice — every entry here names
+ * something the candidate can practise.
+ */
+const IMPROVEMENT_BY_GAP: ReadonlyArray<readonly [RegExp, string]> = [
+  [
+    /did not engage directly/i,
+    'Re-read the question before answering and name its subject in your first sentence, so the answer is visibly on target.',
+  ],
+  [
+    /surface level|little technical substance/i,
+    'Go one layer below the tool: name the mechanism, the data structure or the failure mode involved, not just what the tool is for.',
+  ],
+  [
+    /no concrete example|stayed general/i,
+    'Prepare two or three real stories with numbers attached, and reach for one whenever a question invites an example.',
+  ],
+  [
+    /without explaining why/i,
+    'After stating what you did, add one sentence beginning "I chose this because…" and name the alternative you rejected.',
+  ],
+  [
+    /hedged repeatedly/i,
+    'Replace hedges with a position and its boundary: "X, though I have not tested it beyond Y."',
+  ],
+  [
+    /missing part of its structure/i,
+    'Finish the story: every behavioural answer needs an outcome, even when the outcome was not the one you wanted.',
+  ],
+  [
+    /brief for the depth/i,
+    'Aim for 90 to 150 words on a question like this: context, what you did, the result.',
+  ],
+  [
+    /as "we" throughout|contribution unclear/i,
+    'Say "I" for your own decisions. Reserve "we" for work you genuinely shared, so your contribution is legible.',
+  ],
+];
+
+function improvementFor(score: number, gaps: string[], alreadyAdvised: ReadonlySet<string>): string {
   if (score === 0) {
     return 'Answer this question in full next time — even a partial, honest answer scores better than a skip.';
   }
   if (gaps.length === 0) {
-    return 'Tighten the delivery: lead with the answer, then justify it.';
+    return 'Tighten the delivery: lead with the answer, then justify it in one sentence.';
   }
-  const primary = gaps[0] ?? '';
-  if (primary.includes('concrete example') || primary.includes('general')) {
-    return 'Prepare two or three real stories with numbers attached, and reach for one whenever a question invites an example.';
+
+  const adviceForGaps = gaps
+    .map((gap) => IMPROVEMENT_BY_GAP.find(([pattern]) => pattern.test(gap))?.[1])
+    .filter((advice): advice is string => advice !== undefined);
+
+  // Prefer advice this report has not given yet, so a recurring mistake does not
+  // crowd out everything else the candidate should work on.
+  const fresh = adviceForGaps.find((advice) => !alreadyAdvised.has(advice));
+  if (fresh) return fresh;
+
+  // Every applicable gap has been covered. Say something true about this answer
+  // rather than repeating a line the reader has already seen four times.
+  if (adviceForGaps.length > 0) {
+    return score < 50
+      ? 'The same gaps as earlier answers — work through them once and this question improves with them.'
+      : 'A solid answer with the same rough edge noted above; smoothing it lifts the whole interview.';
   }
-  if (primary.includes('why')) {
-    return 'After stating what you did, add one sentence beginning "I chose this because…" and name the alternative you rejected.';
-  }
-  if (primary.includes('brief')) {
-    return 'Aim for 90 to 150 words: context, what you did, the result.';
-  }
-  if (primary.includes('Hedged')) {
-    return 'Replace hedges with a position and a boundary: "X, though I have not tested it beyond Y."';
-  }
-  return `Address the gap directly: ${primary}`;
+
+  return 'Answer the question that was asked, then add one specific detail that shows you have done this work.';
 }
 
 function dedupe(values: string[]): string[] {

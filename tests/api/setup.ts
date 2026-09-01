@@ -1,4 +1,5 @@
 import { afterAll, beforeAll } from 'vitest';
+import { config } from '@/lib/config';
 import { closePool, query } from '@/lib/db/client';
 import { runMigrations } from '@/lib/db/migrate';
 
@@ -13,15 +14,28 @@ import { runMigrations } from '@/lib/db/migrate';
  */
 
 beforeAll(async () => {
-  const url = process.env['TEST_DATABASE_URL'];
-  if (!url) {
+  // vitest.config.mts injects DATABASE_URL from TEST_DATABASE_URL before any
+  // module loads. Verify it landed rather than trusting it: this suite drops a
+  // schema, and doing that to the wrong database would be unrecoverable.
+  const url = config.database.url;
+
+  if (!process.env['TEST_DATABASE_URL']) {
     throw new Error(
       'TEST_DATABASE_URL is not set. API tests need a disposable PostgreSQL database.',
     );
   }
-  process.env['DATABASE_URL'] = url;
-  process.env['AI_PROVIDER'] = 'none';
-  process.env['RATE_LIMIT_BACKEND'] = 'memory';
+  if (url !== process.env['TEST_DATABASE_URL']) {
+    throw new Error(
+      'The database client is not pointed at TEST_DATABASE_URL. Refusing to drop a schema that ' +
+        'may belong to a development or production database.',
+    );
+  }
+  if (!/test/i.test(url)) {
+    throw new Error(
+      `Refusing to run destructive tests against "${url.replace(/:[^:@]*@/, ':***@')}" — ` +
+        'the database name must contain "test".',
+    );
+  }
 
   await query('DROP SCHEMA IF EXISTS public CASCADE');
   await query('CREATE SCHEMA public');

@@ -39,6 +39,10 @@ export function RadarChart({
   const center = size / 2;
   const radius = center - 46;
   const rings = [25, 50, 75, 100];
+  // Labels sit outside the outer ring, so the drawing area alone is not enough
+  // room for them. The viewBox is widened symmetrically rather than shrinking
+  // the polygon, which would waste the space the chart is given.
+  const gutter = 52;
 
   const pointFor = (index: number, value: number): { x: number; y: number } => {
     // Start at twelve o'clock so the first skill reads as the top of the shape.
@@ -56,7 +60,12 @@ export function RadarChart({
 
   return (
     <figure className="m-0">
-      <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto w-full max-w-[340px]" role="img" aria-label={ariaLabel}>
+      <svg
+        viewBox={`${-gutter} -6 ${size + gutter * 2} ${size + 12}`}
+        className="mx-auto w-full max-w-[420px]"
+        role="img"
+        aria-label={ariaLabel}
+      >
         {rings.map((ring) => (
           <polygon
             key={ring}
@@ -114,7 +123,7 @@ export function RadarChart({
         })}
 
         {visible.map((axis, index) => {
-          const label = pointFor(index, 122);
+          const label = pointFor(index, 118);
           const anchor = label.x < center - 6 ? 'end' : label.x > center + 6 ? 'start' : 'middle';
           return (
             <text
@@ -126,7 +135,7 @@ export function RadarChart({
               fill={hover === index ? 'var(--text)' : 'var(--viz-axis)'}
               fontWeight={hover === index ? 600 : 400}
             >
-              {axis.label.length > 14 ? `${axis.label.slice(0, 13)}…` : axis.label}
+              {axis.label.length > 16 ? `${axis.label.slice(0, 15)}…` : axis.label}
               <tspan fill="var(--text-subtle)"> {axis.value}</tspan>
             </text>
           );

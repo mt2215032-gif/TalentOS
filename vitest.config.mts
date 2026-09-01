@@ -41,6 +41,22 @@ export default defineConfig({
           include: ['tests/api/**/*.test.ts'],
           environment: 'node',
           setupFiles: ['tests/api/setup.ts'],
+          /*
+           * Set here rather than in the setup file's beforeAll.
+           *
+           * `src/lib/config.ts` reads process.env at module load, and setup
+           * files import the database client — so by the time a beforeAll runs,
+           * the connection string is already fixed. Setting it in beforeAll
+           * meant the suite fell back to the default URL and dropped the schema
+           * of the *development* database. These run before any module loads.
+           */
+          env: {
+            NODE_ENV: 'test',
+            DATABASE_URL: process.env['TEST_DATABASE_URL'] ?? '',
+            AI_PROVIDER: 'none',
+            RATE_LIMIT_BACKEND: 'memory',
+            AUTH_SECRET: 'vitest-only-secret-not-used-outside-the-test-suite',
+          },
           // One database, so no parallel writers.
           fileParallelism: false,
           sequence: { concurrent: false },

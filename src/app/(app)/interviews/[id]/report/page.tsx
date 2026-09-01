@@ -217,7 +217,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <ul className="divide-y divide-[var(--border)]">
             {report.skillGaps.map((gap, index) => (
               <li key={index} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4">
-                <div className="flex w-40 shrink-0 items-center gap-2">
+                <div className="flex w-full shrink-0 items-center gap-2 sm:w-56">
                   <Badge
                     tone={
                       gap.severity === 'critical' ? 'danger'

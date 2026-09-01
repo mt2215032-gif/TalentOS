@@ -298,12 +298,14 @@ export async function getDashboard(userId: string): Promise<DashboardData> {
       priority: number;
       skill_key: string | null;
     }>(
-      `SELECT r.title, r.detail, r.kind, r.priority, r.skill_key
+      // Deduplicated by title and ordered by urgency. Ordering by evaluation
+      // date first interleaves two reports' priorities, so the list reads
+      // 1, 2, 2, 3, 3, 1 — which is not a priority order to a user.
+      `SELECT DISTINCT ON (r.title) r.title, r.detail, r.kind, r.priority, r.skill_key
          FROM recommendations r
          JOIN evaluations e ON e.id = r.evaluation_id
         WHERE r.user_id = $1
-        ORDER BY e.created_at DESC, r.priority ASC
-        LIMIT 6`,
+        ORDER BY r.title, e.created_at DESC`,
       [userId],
     ),
   ]);
@@ -348,12 +350,17 @@ export async function getDashboard(userId: string): Promise<DashboardData> {
     strongestSkill: evidenced.length > 0 ? (evidenced[evidenced.length - 1] ?? null) : null,
     weakestSkill: evidenced[0] ?? null,
     recentInterviews,
-    recommendations: recommendations.map((recommendation) => ({
-      title: recommendation.title,
-      detail: recommendation.detail,
-      kind: recommendation.kind,
-      priority: recommendation.priority,
-      skillKey: recommendation.skill_key,
-    })),
+    // DISTINCT ON requires ordering by the distinct key, so the priority sort
+    // happens here rather than in SQL.
+    recommendations: recommendations
+      .map((recommendation) => ({
+        title: recommendation.title,
+        detail: recommendation.detail,
+        kind: recommendation.kind,
+        priority: recommendation.priority,
+        skillKey: recommendation.skill_key,
+      }))
+      .sort((a, b) => a.priority - b.priority)
+      .slice(0, 6),
   };
 }
