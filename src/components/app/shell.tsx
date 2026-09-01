@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Logo } from '@/components/marketing/nav';
 import { ThemeToggle } from '@/components/ui/theme';
@@ -34,6 +34,7 @@ export function AppShell({
   engine: { provider: string; isLlm: boolean };
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -53,10 +54,11 @@ export function AppShell({
     try {
       await api.post('/api/auth/logout');
     } finally {
-      // A hard navigation rather than router.push: signing out must drop every
-      // cached server component and client store for the old session, and
-      // push-then-refresh races in a way that can leave the user on the page.
-      window.location.assign('/login');
+      // Refresh rather than push: the session cookie is already cleared, so
+      // re-rendering the server tree makes the authenticated layout's own guard
+      // redirect to /login. Pushing and refreshing together races, and one of
+      // the two wins non-deterministically.
+      router.refresh();
     }
   }
 

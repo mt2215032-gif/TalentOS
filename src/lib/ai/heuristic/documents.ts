@@ -1,4 +1,4 @@
-import { detectSkills, resolveSkill } from '@/lib/ai/taxonomy';
+import { detectSkills } from '@/lib/ai/taxonomy';
 import type { CandidateAnalysis, JobAnalysis } from '@/lib/schemas/ai';
 import type { Importance, Requirement, Seniority, SkillCategory } from '@/lib/schemas/domain';
 

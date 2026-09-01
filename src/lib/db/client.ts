@@ -13,7 +13,6 @@ import { config } from '@/lib/config';
 declare global {
   // Next.js dev mode re-imports modules on every edit; without this the process
   // would accumulate one pool per reload until Postgres refuses connections.
-  // eslint-disable-next-line no-var
   var __talentosPool: Pool | undefined;
 }
 

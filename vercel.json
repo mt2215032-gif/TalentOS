@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm ci",
+  "regions": ["fra1"],
+  "functions": {
+    "src/app/api/interviews/route.ts": { "maxDuration": 120 },
+    "src/app/api/interviews/[id]/answer/route.ts": { "maxDuration": 120 },
+    "src/app/api/interviews/[id]/report/route.ts": { "maxDuration": 180 },
+    "src/app/api/resumes/route.ts": { "maxDuration": 120 },
+    "src/app/api/jobs/route.ts": { "maxDuration": 90 }
+  }
+}

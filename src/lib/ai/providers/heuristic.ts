@@ -39,7 +39,6 @@ export class HeuristicProvider implements AIProvider {
     return 'offline-heuristic-v1';
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async generateStructured<T extends z.ZodType>(
     request: StructuredRequest<T>,
   ): Promise<StructuredResult<z.infer<T>>> {

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { query, queryOne } from '@/lib/db/client';
 import { createUser } from '@/lib/db/repositories/users';
 import { ingestResume, getResume, setPrimaryResume } from '@/lib/resume/service';

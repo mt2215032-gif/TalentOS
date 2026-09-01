@@ -8,7 +8,7 @@ import {
   DIFFICULTY_LABELS, INTERVIEW_TYPE_LABELS, VERDICT_LABELS,
 } from '@/lib/schemas/domain';
 import {
-  Badge, Card, CardHeader, ScorePill, buttonClass, scoreBand,
+  Badge, Card, CardHeader, buttonClass, scoreBand,
 } from '@/components/ui/primitives';
 import { BarList } from '@/components/charts/bar-list';
 import { RadarChart } from '@/components/charts/radar-chart';

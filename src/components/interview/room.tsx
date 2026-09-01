@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
@@ -75,8 +76,6 @@ interface Props {
 }
 
 export function InterviewRoom({ interview: initial, currentQuestion: initialQuestion, history: initialHistory }: Props) {
-  const router = useRouter();
-
   const [interview, setInterview] = useState(initial);
   const [question, setQuestion] = useState<RoomQuestion | null>(initialQuestion);
   const [history, setHistory] = useState(initialHistory);
@@ -87,24 +86,28 @@ export function InterviewRoom({ interview: initial, currentQuestion: initialQues
   const [elapsed, setElapsed] = useState(0);
   const [showTranscript, setShowTranscript] = useState(false);
 
-  const questionShownAt = useRef<number>(Date.now());
+  // Seeded at 0 rather than Date.now(): calling a clock during render is impure
+  // and would differ between the server and client passes. The effect below sets
+  // it as soon as a question is on screen.
+  const questionShownAt = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const paused = interview.status === 'paused';
 
-  // Reset the response timer whenever a new question arrives.
+  // Reset the response timer whenever a new question arrives, and drive the
+  // visible clock from one interval. Elapsed time is derived inside the
+  // interval rather than reset synchronously, so no state is set during the
+  // effect body itself.
   useEffect(() => {
+    if (!question) return;
     questionShownAt.current = Date.now();
-    setElapsed(0);
-    if (question && !paused) textareaRef.current?.focus();
-  }, [question?.id, paused, question]);
+    if (!paused) textareaRef.current?.focus();
 
-  useEffect(() => {
-    if (paused || finished || !question) return;
+    if (paused || finished) return;
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - questionShownAt.current) / 1000));
     }, 1000);
     return () => clearInterval(timer);
-  }, [paused, finished, question]);
+  }, [question, paused, finished]);
 
   const submit = useCallback(
     async (text: string) => {
@@ -460,9 +463,9 @@ function FinishedPanel({ interviewId, answered }: { interviewId: string; answere
         <Button onClick={() => void generate()} loading={pending} size="lg">
           {pending ? 'Analysing your answers…' : 'Generate my report'}
         </Button>
-        <a href="/interviews" className={buttonClass('secondary', 'lg')}>
+        <Link href="/interviews" className={buttonClass('secondary', 'lg')}>
           Back to interviews
-        </a>
+        </Link>
       </div>
     </div>
   );

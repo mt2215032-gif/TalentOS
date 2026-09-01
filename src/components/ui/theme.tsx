@@ -1,6 +1,13 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 
 /**
  * Theme control.
@@ -28,53 +35,81 @@ const ThemeContext = createContext<ThemeContextValue>({
   resolved: 'light',
 });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolved, setResolved] = useState<'light' | 'dark'>('light');
+/**
+ * Reads the stored preference through an external store rather than an effect,
+ * so the value is correct on the first client render instead of arriving one
+ * render later — which would flash the wrong theme.
+ */
+const themeListeners = new Set<() => void>();
 
-  useEffect(() => {
+function subscribeToTheme(listener: () => void): () => void {
+  themeListeners.add(listener);
+  // Another tab changing the preference should update this one too.
+  window.addEventListener('storage', listener);
+  return () => {
+    themeListeners.delete(listener);
+    window.removeEventListener('storage', listener);
+  };
+}
+
+function readStoredTheme(): Theme {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw === 'light' || raw === 'dark' ? raw : 'system';
+  } catch {
     // localStorage throws in some privacy modes; a theme is never worth a crash.
-    let stored: Theme = 'system';
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw === 'light' || raw === 'dark') stored = raw;
-    } catch {
-      // Keep the default.
-    }
-    setThemeState(stored);
-  }, []);
+    return 'system';
+  }
+}
 
+/** The server has no preference to read, so it always renders "system". */
+const readServerTheme = (): Theme => 'system';
+
+function subscribeToSystemScheme(listener: () => void): () => void {
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  media.addEventListener('change', listener);
+  return () => media.removeEventListener('change', listener);
+}
+
+const readSystemScheme = (): 'light' | 'dark' =>
+  window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+const readServerScheme = (): 'light' | 'dark' => 'light';
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const theme = useSyncExternalStore(subscribeToTheme, readStoredTheme, readServerTheme);
+  const systemScheme = useSyncExternalStore(
+    subscribeToSystemScheme,
+    readSystemScheme,
+    readServerScheme,
+  );
+
+  const resolved: 'light' | 'dark' = theme === 'system' ? systemScheme : theme;
+
+  // Reflect the choice onto the document. This writes to the DOM rather than to
+  // React state, which is exactly what an effect is for.
   useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-
-    const apply = (): void => {
-      const effective = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
-      setResolved(effective);
-      if (theme === 'system') {
-        document.documentElement.removeAttribute('data-theme');
-      } else {
-        document.documentElement.setAttribute('data-theme', theme);
-      }
-    };
-
-    apply();
-    media.addEventListener('change', apply);
-    return () => media.removeEventListener('change', apply);
+    if (theme === 'system') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
   }, [theme]);
 
   const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
     try {
       if (next === 'system') localStorage.removeItem(STORAGE_KEY);
       else localStorage.setItem(STORAGE_KEY, next);
     } catch {
-      // Preference simply will not persist.
+      // The preference simply will not persist.
     }
+    // Notify this tab; the storage event only fires in *other* tabs.
+    for (const listener of themeListeners) listener();
   }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolved }}>{children}</ThemeContext.Provider>
-  );
+  const value = useMemo(() => ({ theme, setTheme, resolved }), [theme, setTheme, resolved]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {

@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth/session';
 import { getDashboard } from '@/lib/interview/history';
 import { getUsage } from '@/lib/billing/entitlements';
 import { getPlan, METRIC_LABELS } from '@/lib/billing/plans';
-import { INTERVIEW_TYPE_LABELS, VERDICT_LABELS } from '@/lib/schemas/domain';
+import { INTERVIEW_TYPE_LABELS } from '@/lib/schemas/domain';
 import {
   Badge, Card, CardHeader, EmptyState, ProgressBar, ScorePill, StatTile, buttonClass,
 } from '@/components/ui/primitives';
